@@ -1,21 +1,8 @@
 /*
- * kretprobe_example.c
  *
- * Here's a sample kernel module showing the use of return probes to
- * report the return value and total time taken for probed function
- * to run.
+ * kretprobe to trace netfilter skb processing
+ * The objective is to find where a packet gets dropped
  *
- * usage: insmod kretprobe_example.ko func=<func_name>
- *
- * If no func_name is specified, _do_fork is instrumented
- *
- * For more information on theory of operation of kretprobes, see
- * Documentation/kprobes.txt
- *
- * Build and insert the kernel module as done in the kprobe example.
- * You will see the trace data in /var/log/messages and on the console
- * whenever the probed function returns. (Some messages may be suppressed
- * if syslogd is configured to eliminate duplicate messages.)
  */
 
 #include <linux/kernel.h>
@@ -24,6 +11,7 @@
 
 #include <linux/skbuff.h>
 #include <net/ip.h>
+#include <linux/netfilter/x_tables.h>
 
 #define NAME_LEN 50
 
@@ -32,7 +20,9 @@
  * Might want ot make those module parameters
  */
 #define DPORT 0x1f90
-#define SADDR 0x0a00fe01
+#define TADDR 0x0a00fe01
+//#define DPORT 0x50
+//#define TADDR 0x0a2a0001
 
 static char func_name[NAME_LEN] = "ipt_do_table";
 //module_param_string(func, func_name, NAME_MAX, S_IRUGO);
@@ -60,6 +50,18 @@ static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 		return 1;
 	}
 
+	data->state = (struct nf_hook_state *) regs_get_kernel_argument(regs, 1);
+	if (!data->state) {
+		pr_err("%s found NULL nf_hook_state pointer", func_name);
+		return 1;
+	}
+
+	data->table = (struct xt_table *) regs_get_kernel_argument(regs, 2);
+	if (!data->table) {
+		pr_err("%s found NULL xt_table pointer", func_name);
+		return 1;
+	}
+
 	return 0;
 }
 
@@ -70,12 +72,16 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	int retval = regs_return_value(regs);
 	struct steph *data;
+	struct nf_hook_state *state;
+	struct xt_table *table;
 	struct iphdr *iph;
 	struct tcphdr *tcph;
 	struct udphdr *udph;
 	__u32 saddr, daddr;
 	__u16 src, dst;
 	unsigned int proto;
+	const char *devin, *devout;
+	int devidxin, devidxout;
 
 	data = (struct steph *)ri->data;
 	if (!data) {
@@ -92,7 +98,7 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 	saddr = ntohl(iph->saddr);
 	daddr = ntohl(iph->daddr);
 
-	if (saddr != SADDR)
+	if ((saddr != TADDR) && (daddr != TADDR))
 		return 0;
 
 	switch(iph->protocol) {
@@ -128,8 +134,36 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 	}
 
 	if ((src == DPORT) || (dst == DPORT)) {
-		pr_info("%s - saddr=%x, daddr=%x, proto=%d, "
-			"spt=%x, dpt=%x, retval=%d\n", func_name, saddr, daddr, proto, src, dst, retval);
+		state = data->state;
+		if (state) {
+			if (state->in) {
+				devin = state->in->name;
+				devidxin = state->in->ifindex;
+			} else {
+				devin = NULL;
+				devidxin = 0;
+			}
+
+			if (state->out) {
+				devout = state->out->name;
+				devidxout = state->out->ifindex;
+			} else {
+				devout = NULL;
+				devidxout = 0;
+			}
+		} else {
+			devin = NULL;
+			devidxin = 0;
+			devout = NULL;
+			devidxout = 0;
+		}
+
+		table = data->table;
+
+		pr_info("%s(%s) - devin=%s/%d, devout=%s/%d, saddr=%x, daddr=%x, proto=%d, "
+			"spt=%x, dpt=%x, retval=%d\n", func_name, table->name, devin, devidxin,
+							devout, devidxout, saddr, daddr, proto,
+							src, dst, retval);
 	}
 
 	return 0;
