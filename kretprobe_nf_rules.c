@@ -1,7 +1,7 @@
 /*
  *
- * kretprobe to trace netfilter ingress skb processing
- * The objective is to find where an ingress packet gets dropped
+ * kretprobe to trace netfilter skb processing
+ * The objective is to find where a packet gets dropped
  *
  */
 
