@@ -1,7 +1,7 @@
 /*
  *
- * kretprobe to trace netfilter skb processing
- * The objective is to find where a packet gets dropped
+ * kretprobe to trace netfilter ingress skb processing
+ * The objective is to find where an ingress packet gets dropped
  *
  */
 
@@ -15,18 +15,7 @@
 
 #define NAME_LEN 50
 
-/*
- * All little-endian
- * Might want ot make those module parameters
- */
-#define DPORT 0x1f90
-#define TADDR 0x0a00fe01
-//#define DPORT 0x50
-//#define TADDR 0x0a2a0001
-
 static char func_name[NAME_LEN] = "ipt_do_table";
-//module_param_string(func, func_name, NAME_MAX, S_IRUGO);
-//MODULE_PARM_DESC(func, "Reports info about nf_conntrack_tcp_packet()");
 
 /* Per-instance private data struct */
 struct steph {
@@ -70,7 +59,7 @@ static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
  */
 static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	int retval = regs_return_value(regs);
+	int verdict;
 	struct steph *data;
 	struct nf_hook_state *state;
 	struct xt_table *table;
@@ -82,6 +71,12 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 	unsigned int proto;
 	const char *devin, *devout;
 	int devidxin, devidxout;
+
+	verdict = regs_return_value(regs);
+
+	/* We don't care about accepted ingress packets */
+	if (verdict == NF_ACCEPT)
+		return 0;
 
 	data = (struct steph *)ri->data;
 	if (!data) {
@@ -97,9 +92,6 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 	saddr = ntohl(iph->saddr);
 	daddr = ntohl(iph->daddr);
-
-	if ((saddr != TADDR) && (daddr != TADDR))
-		return 0;
 
 	switch(iph->protocol) {
 		case IPPROTO_TCP:
@@ -130,41 +122,39 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 			break;
 		default:
 			pr_warn("%s: unsupported L4 protocol; only TCP and UDP are supported", func_name);
-			return 1;
+			return 0;
 	}
 
-	if ((src == DPORT) || (dst == DPORT)) {
-		state = data->state;
-		if (state) {
-			if (state->in) {
-				devin = state->in->name;
-				devidxin = state->in->ifindex;
-			} else {
-				devin = NULL;
-				devidxin = 0;
-			}
-
-			if (state->out) {
-				devout = state->out->name;
-				devidxout = state->out->ifindex;
-			} else {
-				devout = NULL;
-				devidxout = 0;
-			}
+	state = data->state;
+	if (state) {
+		if (state->in) {
+			devin = state->in->name;
+			devidxin = state->in->ifindex;
 		} else {
 			devin = NULL;
 			devidxin = 0;
+		}
+
+		if (state->out) {
+			devout = state->out->name;
+			devidxout = state->out->ifindex;
+		} else {
 			devout = NULL;
 			devidxout = 0;
 		}
-
-		table = data->table;
-
-		pr_info("%s(%s) - devin=%s/%d, devout=%s/%d, saddr=%x, daddr=%x, proto=%d, "
-			"spt=%x, dpt=%x, retval=%d\n", func_name, table->name, devin, devidxin,
-							devout, devidxout, saddr, daddr, proto,
-							src, dst, retval);
+	} else {
+		devin = NULL;
+		devidxin = 0;
+		devout = NULL;
+		devidxout = 0;
 	}
+
+	table = data->table;
+
+	pr_info("%s(%s) - devin=%s/%d, devout=%s/%d, saddr=%x, daddr=%x, proto=%d, "
+		"spt=%x, dpt=%x, verdict=%d\n", func_name, table->name, devin, devidxin,
+						devout, devidxout, saddr, daddr, proto,
+						src, dst, verdict);
 
 	return 0;
 }
