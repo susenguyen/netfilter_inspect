@@ -6,14 +6,15 @@ Utility that tracks netfilter verdicts through the different namespaces
 
 The output can be grabbed via dmesg and will look something like this
 
-```
-Dec 25 11:57:39 leap kernel: ipt_do_table - saddr=a00fe01, daddr=ac100002, proto=6, spt=a1c4, dpt=1f90, retval=1
-Dec 25 11:57:39 leap kernel: ipt_do_table - saddr=a00fe01, daddr=ac100002, proto=6, spt=a1c4, dpt=1f90, retval=0
+```  
+[Sun Jan  7 17:27:34 2024] ipt_do_table(filter) - devin=(null)/0, devout=eth0/2, saddr=a010002, daddr=a010001, proto=6, spt=b986, dpt=1f90, verdict=0
 ```
 
-- saddr: source IP address in little-endian
-- daddr: destination IP address in little-endian
+- devin: ingress device
+- devout: egress device
+- saddr: source IP address in little-endian (hex)
+- daddr: destination IP address in little-endian (hex)
 - proto: 6 = TCP and 17 = UDP (only supported protocols for now)
-- spt: source TCP/UDP port in little-endian
-- dpt: destination TCP/UDP port in little-endian
+- spt: source TCP/UDP port in little-endian (hex)
+- dpt: destination TCP/UDP port in little-endian (hex)
 - retval: netfilter verdict (NF_*)
