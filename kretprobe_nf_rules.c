@@ -74,7 +74,7 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 	verdict = regs_return_value(regs);
 
-	/* We don't care about accepted ingress packets */
+	/* We don't care about accepted packets */
 	if (verdict == NF_ACCEPT)
 		return 0;
 
