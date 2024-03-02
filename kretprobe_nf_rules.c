@@ -285,6 +285,12 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 	if (verdict == NF_ACCEPT)
 		return 0;
 
+	/* Initialize the devices & indexes */
+	devin = NULL;
+	devidxin = 0;
+	devout = NULL;
+	devidxout = 0;
+
 	data = (struct steph *)ri->data;
 	if (!data) {
 		pr_err("%s: NULL private data", __func__);
@@ -337,23 +343,12 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 		if (state->in) {
 			devin = state->in->name;
 			devidxin = state->in->ifindex;
-		} else {
-			devin = NULL;
-			devidxin = 0;
 		}
 
 		if (state->out) {
 			devout = state->out->name;
 			devidxout = state->out->ifindex;
-		} else {
-			devout = NULL;
-			devidxout = 0;
 		}
-	} else {
-		devin = NULL;
-		devidxin = 0;
-		devout = NULL;
-		devidxout = 0;
 	}
 
 	table = data->table;
@@ -362,9 +357,9 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 	replay = replay_ipt_do_table(data->skb, data->state, table);
 
 	pr_info("%s(%s) - devin=%s/%d, devout=%s/%d, saddr=%x, daddr=%x, proto=%d, "
-		"spt=%x, dpt=%x, verdict=%d, replay=%d\n", func_name, table->name, devin,
+		"spt=%x, dpt=%x, verdict=%d\n", func_name, table->name, devin,
 					devidxin, devout, devidxout, saddr, daddr,
-					proto, src, dst, verdict, replay);
+					proto, src, dst, verdict);
 
 	return 0;
 }
