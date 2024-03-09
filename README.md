@@ -1,6 +1,6 @@
 # netfilter_inspect
 
-Utility that tracks netfilter verdicts through the different namespaces
+Utility that tracks netfilter DROP verdicts through the different namespaces, and displays the ethernet adapter properties. The objective is to be able to identify what adapter drops a packet, useful in a multi-adapter/multi-namespace environment.
 
 ## Output
 
