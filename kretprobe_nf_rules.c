@@ -281,7 +281,7 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 	verdict = regs_return_value(regs);
 
-	/* We don't care about accepted packets */
+	/* We don't care about accepted packets so exit quickly */
 	if (verdict == NF_ACCEPT)
 		return 0;
 
@@ -367,6 +367,7 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 static struct kretprobe my_kretprobe = {
 	.entry_handler		= entry_handler,
 	.handler		= ret_handler,
+	.data_size		= sizeof(struct steph),
 	/* Probe up to 20 instances concurrently. */
 	.maxactive		= 20,
 };
