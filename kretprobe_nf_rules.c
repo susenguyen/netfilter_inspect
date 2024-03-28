@@ -55,6 +55,10 @@ static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 	return 0;
 }
 
+/*
+ * COMMENTING THIS OUT
+ * Helper functions to replay the packet admission control
+
 static inline struct ipt_entry *
 get_entry(const void *base, unsigned int offset)
 {
@@ -67,8 +71,6 @@ struct ipt_entry *ipt_next_entry(const struct ipt_entry *entry)
 	return (void *)entry + entry->next_offset;
 }
 
-/* Returns whether matches rule or not. */
-/* Performance critical - called for every packet */
 static inline bool
 ip_packet_match(const struct iphdr *ip,
 		const char *indev,
@@ -94,13 +96,10 @@ ip_packet_match(const struct iphdr *ip,
 	if (NF_INVF(ipinfo, IPT_INV_VIA_OUT, ret != 0))
 		return false;
 
-	/* Check specific protocol */
 	if (ipinfo->proto &&
 	    NF_INVF(ipinfo, IPT_INV_PROTO, ip->protocol != ipinfo->proto))
 		return false;
 
-	/* If we have a fragment rule but the packet is not a fragment
-	 * then we return zero */
 	if (NF_INVF(ipinfo, IPT_INV_FRAG,
 		    (ipinfo->flags & IPT_F_FRAG) && !isfrag))
 		return false;
@@ -108,14 +107,12 @@ ip_packet_match(const struct iphdr *ip,
 	return true;
 }
 
-/* for const-correctness */
 static inline const struct xt_entry_target *
 ipt_get_target_c(const struct ipt_entry *e)
 {
         return ipt_get_target((struct ipt_entry *)e);
 }
 
-/* Replaying ipt_do_table() to extract more information */
 unsigned int
 replay_ipt_do_table(struct sk_buff *skb,
 	     const struct nf_hook_state *state,
@@ -124,7 +121,6 @@ replay_ipt_do_table(struct sk_buff *skb,
 	unsigned int hook = state->hook;
 	static const char nulldevname[IFNAMSIZ] __attribute__((aligned(sizeof(long))));
 	const struct iphdr *ip;
-	/* Initializing verdict to NF_DROP keeps gcc happy. */
 	unsigned int verdict = NF_DROP;
 	const char *indev, *outdev;
 	const void *table_base;
@@ -134,17 +130,10 @@ replay_ipt_do_table(struct sk_buff *skb,
 	struct xt_action_param acpar;
 	unsigned int addend;
 
-	/* Initialization */
 	stackidx = 0;
 	ip = ip_hdr(skb);
 	indev = state->in ? state->in->name : nulldevname;
 	outdev = state->out ? state->out->name : nulldevname;
-	/* We handle fragments by dealing with the first fragment as
-	 * if it was a normal packet.  All other fragments are treated
-	 * normally, except that they will NEVER match rules that ask
-	 * things we don't know, ie. tcp syn flag or ports).  If the
-	 * rule is also a fragment-specific rule, non-fragments won't
-	 * match it. */
 	acpar.fragoff = ntohs(ip->frag_off) & IP_OFFSET;
 	acpar.thoff   = ip_hdrlen(skb);
 	acpar.hotdrop = false;
@@ -153,18 +142,11 @@ replay_ipt_do_table(struct sk_buff *skb,
 	WARN_ON(!(table->valid_hooks & (1 << hook)));
 	local_bh_disable();
 	addend = xt_write_recseq_begin();
-	private = READ_ONCE(table->private); /* Address dependency. */
+	private = READ_ONCE(table->private);
 	cpu        = smp_processor_id();
 	table_base = private->entries;
 	jumpstack  = (struct ipt_entry **)private->jumpstack[cpu];
 
-	/* Switch to alternate jumpstack if we're being invoked via TEE.
-	 * TEE issues XT_CONTINUE verdict on original skb so we must not
-	 * clobber the jumpstack.
-	 *
-	 * For recursion via REJECT or SYNPROXY the stack will be clobbered
-	 * but it is no problem since absolute verdict is issued by these.
-	 */
 	if (static_key_false(&xt_tee_enabled))
 		jumpstack += private->stacksize * __this_cpu_read(nf_skb_duplicated);
 
@@ -187,7 +169,7 @@ replay_ipt_do_table(struct sk_buff *skb,
 			acpar.match     = ematch->u.kernel.match;
 			acpar.matchinfo = ematch->data;
 
-			/* NMS */
+			// NMS
 			if (acpar.match)
 				pr_info("STEPH: match %s\n", acpar.match->name
 								? acpar.match->name : "(null)");
@@ -202,17 +184,15 @@ replay_ipt_do_table(struct sk_buff *skb,
 		t = ipt_get_target_c(e);
 		WARN_ON(!t->u.kernel.target);
 
-		/* NMS */
+		// NMS
 		pr_info("STEPH: target %s\n", t->u.kernel.target->name
 							? t->u.kernel.target->name : "(null)");
 
-		/* Standard target? */
 		if (!t->u.kernel.target->target) {
 			int v;
 
 			v = ((struct xt_standard_target *)t)->verdict;
 			if (v < 0) {
-				/* Pop from stack? */
 				if (v != XT_RETURN) {
 					verdict = (unsigned int)(-v) - 1;
 					break;
@@ -244,11 +224,9 @@ replay_ipt_do_table(struct sk_buff *skb,
 
 		verdict = t->u.kernel.target->target(skb, &acpar);
 		if (verdict == XT_CONTINUE) {
-			/* Target might have changed stuff. */
 			ip = ip_hdr(skb);
 			e = ipt_next_entry(e);
 		} else {
-			/* Verdict */
 			break;
 		}
 	} while (!acpar.hotdrop);
@@ -261,12 +239,15 @@ replay_ipt_do_table(struct sk_buff *skb,
 	else return verdict;
 }
 
+*
+*/
+
 /*
  * The packet and netfilter verdict inspection
  */
 static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	int verdict, replay;
+	int verdict;
 	struct steph *data;
 	struct nf_hook_state *state;
 	struct xt_table *table;
@@ -354,7 +335,8 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 	table = data->table;
 
 	/* Now, we replay ipt_do_table() */
-	replay = replay_ipt_do_table(data->skb, data->state, table);
+	// int replay;
+	// replay = replay_ipt_do_table(data->skb, data->state, table);
 
 	pr_info("%s(%s) - devin=%s/%d, devout=%s/%d, saddr=0x%x, daddr=0x%x, proto=%d, "
 		"spt=0x%x, dpt=0x%x, verdict=%d\n", func_name, table->name, devin,
