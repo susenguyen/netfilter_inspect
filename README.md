@@ -17,4 +17,4 @@ The output can be grabbed via dmesg and will look something like this
 - proto: 6 = TCP and 17 = UDP (only supported protocols for now)
 - spt: source TCP/UDP port in little-endian (hex)
 - dpt: destination TCP/UDP port in little-endian (hex)
-- retval: netfilter verdict (NF_*)
+- retval: netfilter verdict NF_* which values/code mappings can be found in uapi/linux/netfilter.h
