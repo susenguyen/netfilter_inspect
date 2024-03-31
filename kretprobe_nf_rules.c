@@ -57,6 +57,7 @@ static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 /*
  * COMMENTING THIS OUT
+ * Highly non-portable across kernel versions so, just to play around
  * Helper functions to replay the packet admission control
 
 static inline struct ipt_entry *
