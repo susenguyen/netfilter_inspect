@@ -248,7 +248,7 @@ replay_ipt_do_table(struct sk_buff *skb,
  */
 static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	int verdict;
+	unsigned int verdict;
 	struct steph *data;
 	struct nf_hook_state *state;
 	struct xt_table *table;
@@ -340,7 +340,7 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 	// replay = replay_ipt_do_table(data->skb, data->state, table);
 
 	pr_info("%s(%s) - devin=%s/%d, devout=%s/%d, saddr=0x%x, daddr=0x%x, proto=%d, "
-		"spt=0x%x, dpt=0x%x, verdict=%d\n", func_name, table->name, devin,
+		"spt=0x%x, dpt=0x%x, verdict=0x%x\n", func_name, table->name, devin,
 					devidxin, devout, devidxout, saddr, daddr,
 					proto, src, dst, verdict);
 
