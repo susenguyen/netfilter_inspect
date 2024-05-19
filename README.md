@@ -14,7 +14,7 @@ The output can be grabbed via dmesg and will look something like this
 - devout: egress device
 - saddr: source IP address in little-endian (hex)
 - daddr: destination IP address in little-endian (hex)
-- proto: 6 = TCP and 17 = UDP (only supported protocols for now)
+- proto: "tcp" or "udp"
 - spt: source TCP/UDP port in little-endian (hex)
 - dpt: destination TCP/UDP port in little-endian (hex)
 - retval: netfilter verdict NF_* which values/code mappings can be found in uapi/linux/netfilter.h

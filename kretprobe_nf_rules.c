@@ -339,10 +339,11 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 	// int replay;
 	// replay = replay_ipt_do_table(data->skb, data->state, table);
 
-	pr_info("%s(%s) - devin=%s/%d, devout=%s/%d, saddr=0x%x, daddr=0x%x, proto=%d, "
+	pr_info("%s(%s) - devin=%s/%d, devout=%s/%d, saddr=0x%x, daddr=0x%x, proto=%s, "
 		"spt=0x%x, dpt=0x%x, verdict=0x%x\n", func_name, table->name, devin,
 					devidxin, devout, devidxout, saddr, daddr,
-					proto, src, dst, verdict);
+					proto == IPPROTO_TCP ? "tcp" : "udp",
+					src, dst, verdict);
 
 	return 0;
 }
